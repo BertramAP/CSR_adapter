@@ -3,7 +3,7 @@ import help._
 
 import chisel3._
 import chisel3.util._
-
+// TODO: Handle the internal hardware logic with the APB interface
 class ApbPort extends Bundle {
   val psel = Input(Bool())
   val penable = Input(Bool())
@@ -21,7 +21,7 @@ class CsrAdapter(descriptionSheetPath: String) extends Module {
   val map = sheets("Map")
 
   println(map)
-  // 
+  // Stores the given registers associated with each hardware block in a hash map
   val elements = for { // Loop through each hardware block in the map sheet
     row <- map.rows
     blockType = row(0)
@@ -48,8 +48,7 @@ class CsrAdapter(descriptionSheetPath: String) extends Module {
     (name, registers)
   }
   val apb = IO(new ApbPort)
-  //Dynamically load in the each row
-  // TODO: handle offset and regInit value
+  //Dynamically load in the each row, this stores all of the IO interfaces from the sheet into a map of DynamicBundles
   val myBundle = new DynamicBundle(elements.map { case (name, registers) =>
     (name, new DynamicBundle(
       registers.flatMap { case (regName, regOffset, regField, regType, regRange, regInit) =>
@@ -74,11 +73,13 @@ class CsrAdapter(descriptionSheetPath: String) extends Module {
   myBundle.elements.foreach { case (name, data) =>
     println(s"$name: ${data.getWidth} bits")
   }
+
+  // TODO: Load in the APB interface and connect the appropriate signals from myBundle
   val csr = IO(new DynamicBundle(
     Seq(sheets(map.column("Block").head).column("Register").head -> Output(UInt(32.W)))
   ))
   
-
+  
   apb := DontCare
   apb.pready := 1.B
   apb.pslverr := 1.B
