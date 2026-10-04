@@ -1,0 +1,22 @@
+[0m[[0m[0mdebug[0m] [0m[0mPackaging /home/ap/Dokumenter/DTU/02201 Agile Hardware Design/CSR_adapter/target/out/jvm/scala-2.13.16/csr_adapter/csr_adapter_2.13-0.1.0-SNAPSHOT.jar ...[0m
+[0m[[0m[0mdebug[0m] [0m[0mInput file mappings:[0m
+[0m[[0m[0mdebug[0m] [0m[0m	ApbPort.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  /home/ap/Dokumenter/DTU/02201 Agile Hardware Design/CSR_adapter/target/out/jvm/scala-2.13.16/csr_adapter/classes/ApbPort.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	CsrAdapter$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  /home/ap/Dokumenter/DTU/02201 Agile Hardware Design/CSR_adapter/target/out/jvm/scala-2.13.16/csr_adapter/classes/CsrAdapter$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	CsrAdapter$delayedInit$body.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  /home/ap/Dokumenter/DTU/02201 Agile Hardware Design/CSR_adapter/target/out/jvm/scala-2.13.16/csr_adapter/classes/CsrAdapter$delayedInit$body.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	CsrAdapter.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  /home/ap/Dokumenter/DTU/02201 Agile Hardware Design/CSR_adapter/target/out/jvm/scala-2.13.16/csr_adapter/classes/CsrAdapter.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	FieldConfig$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  /home/ap/Dokumenter/DTU/02201 Agile Hardware Design/CSR_adapter/target/out/jvm/scala-2.13.16/csr_adapter/classes/FieldConfig$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	FieldConfig.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  /home/ap/Dokumenter/DTU/02201 Agile Hardware Design/CSR_adapter/target/out/jvm/scala-2.13.16/csr_adapter/classes/FieldConfig.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	help/DynamicBundle.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  /home/ap/Dokumenter/DTU/02201 Agile Hardware Design/CSR_adapter/target/out/jvm/scala-2.13.16/csr_adapter/classes/help/DynamicBundle.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	help/Sheet$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  /home/ap/Dokumenter/DTU/02201 Agile Hardware Design/CSR_adapter/target/out/jvm/scala-2.13.16/csr_adapter/classes/help/Sheet$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	help/Sheet.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  /home/ap/Dokumenter/DTU/02201 Agile Hardware Design/CSR_adapter/target/out/jvm/scala-2.13.16/csr_adapter/classes/help/Sheet.class[0m
+[0m[[0m[0mdebug[0m] [0m[0mDone packaging.[0m
+[0m[[0m[0mdebug[0m] [0m[0mwrote ${OUT}/jvm/scala-2.13.16/csr_adapter/csr_adapter_2.13-0.1.0-SNAPSHOT.jar[0m

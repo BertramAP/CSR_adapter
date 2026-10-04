@@ -1,0 +1,4 @@
+[0m[[0m[31merror[0m] [0m[0m/home/ap/Dokumenter/DTU/02201 Agile Hardware Design/CSR_adapter/src/main/scala/CsrAdapter.scala:121:67: not found: value regType[0m
+[0m[[0m[31merror[0m] [0m[0m          case _ => throw new Exception(s"Unknown register type: $regType")[0m
+[0m[[0m[31merror[0m] [0m[0m                                                                  ^[0m
+[0m[[0m[31merror[0m] [0m[0mone error found[0m
