@@ -8,14 +8,15 @@ class GeneratorTest extends AnyFlatSpec with ChiselScalatestTester {
   val enableWaveform = true
 
 
-  val annotations = if (enableWaveform) {
+  val annotations = (if (enableWaveform) {
     Seq(WriteVcdAnnotation)
   } else {
     Seq()
-  }
+  }) ++ (if (sys.env.get("CSR_TEST_BACKEND").contains("verilator"))
+    Seq(VerilatorBackendAnnotation) else Seq.empty)
 
   "Chisel CSR Generator" should "generate CSR adapter for soc.xlsx" in {
-    // test that the PythonSocAdapter blackbox can be instantiated
+    // Minimal smoke test; CsrAdapterTest covers the complete Chisel implementation.
     test(new CsrAdapter("soc.xlsx")).withAnnotations(annotations) { dut =>
       val bfm = new ApbMasterBfm(
         dut.clock,
@@ -40,7 +41,7 @@ class GeneratorTest extends AnyFlatSpec with ChiselScalatestTester {
   "Python CSR Generator" should "generate CSR adapter for soc.xlsx" in {
 
     test(new PythonSocAdapterWrapper)
-      .withAnnotations(Seq(VerilatorBackendAnnotation) ++ annotations) {
+      .withAnnotations((Seq(VerilatorBackendAnnotation) ++ annotations).distinct) {
         dut =>
           // instantiate APB master Bus Functional Model (BFM)
           val bfm = new ApbMasterBfm(

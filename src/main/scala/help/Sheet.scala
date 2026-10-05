@@ -8,6 +8,7 @@ import org.apache.poi.ss.usermodel.Row
 import org.apache.poi.ss.usermodel.Cell
 
 import scala.collection.mutable
+import scala.util.Using
 
 
 class Sheet(headerSeq: Seq[String], val rows: Seq[Seq[String]]) {
@@ -30,32 +31,27 @@ object Sheet {
 
   def load(filepath: String): Map[String, Sheet] = {
 
-    val workbook = new XSSFWorkbook(new FileInputStream(new File(filepath)))
+    Using.resource(new FileInputStream(new File(filepath))) { input =>
+      Using.resource(new XSSFWorkbook(input)) { workbook =>
+        val sheetMap = mutable.Map[String, Sheet]()
+        workbook.forEach { sheet =>
+          val numCols = getLastNonEmptyInRow(sheet.getRow(0).cellIterator())
+          val numRows = getLastNonEmptyRowStart(sheet.rowIterator()) - 1
+          val headerRow = sheet.getRow(0)
+          val header = for (j <- 0 until numCols) yield headerRow.getCell(j).toString
+          val rows = Array.ofDim[String](numRows, numCols)
 
-    val sheetMap = mutable.Map[String, Sheet]()
-    workbook.forEach { sheet =>
-      val numCols = getLastNonEmptyInRow(sheet.getRow(0).cellIterator())
-      val numRows = getLastNonEmptyRowStart(sheet.rowIterator()) - 1
-
-      val headerRow = sheet.getRow(0)
-      val header = for (j <- 0 until numCols) yield headerRow.getCell(j).toString
-
-      val rows = Array.ofDim[String](numRows, numCols)
-
-      for (i <- 0 until numRows) {
-        for (j <- 0 until numCols) {
-          val cell = sheet.getRow(i + 1).getCell(j)
-          if (cell != null) {
-            rows(i)(j) = cell.toString
-          } else {
-            rows(i)(j) = ""
+          for (i <- 0 until numRows) {
+            for (j <- 0 until numCols) {
+              val cell = sheet.getRow(i + 1).getCell(j)
+              rows(i)(j) = if (cell != null) cell.toString else ""
+            }
           }
+          sheetMap(sheet.getSheetName) = new Sheet(header, rows.map(_.toSeq).toSeq)
         }
+        sheetMap.toMap
       }
-      sheetMap(sheet.getSheetName) = new Sheet(header, rows.map(_.toSeq).toSeq)
     }
-
-    sheetMap.toMap
   }
 
   // go through first column and find last non-empty row
