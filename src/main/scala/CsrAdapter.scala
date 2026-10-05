@@ -1,9 +1,8 @@
-
 import help._
 
 import chisel3._
-import chisel3.util._
-// TODO: Handle the internal hardware logic with the APB interface
+import circt.stage.ChiselStage
+
 class ApbPort extends Bundle {
   val psel = Input(Bool())
   val penable = Input(Bool())
@@ -15,141 +14,101 @@ class ApbPort extends Bundle {
   val pslverr = Output(Bool())
 }
 
-case class FieldConfig(
-  instName: String,
-  portName: String,
-  address: BigInt,
-  regType: String,
-  width: Int,
-  initValue: Option[BigInt]
-)
-
 class CsrAdapter(descriptionSheetPath: String) extends Module {
-
-  val sheets = Sheet.load(descriptionSheetPath)
-  // Map is sheet page that contains the list of hardware blocks that are present in the design
-  val map = sheets("Map")
-
-  println(map)
-  // Stores the given registers associated with each hardware block in a hash map
-  val fieldConfigs: Seq[FieldConfig] = for {
-    row <- map.rows
-    blockType = row(0)
-    name = row(1)
-    interface = row(2)
-    baseAddress = BigInt(row(3).replace("0x", ""), 16)
-    endAddress = BigInt(row(4).replace("0x", ""), 16)
-    cacheable = row(5)
-    executable = row(6)
-    description = row(7)
-    blockSheet = sheets(blockType)
-
-    regRow <- blockSheet.rows
-    regName = regRow(0)
-    regOffset = BigInt(regRow(1).replace("0x", ""), 16)
-    regField = regRow(2)
-    regType = regRow(3)
-    regRange = regRow(4)
-    regInit = if (regRow(5).trim.isEmpty || regRow(5).trim == "?") None else Some(BigInt(regRow(5).replace("0x", "").split('.').head, 16))
-
-  } yield {
-    val portName = if (regField.trim.isEmpty) {
-      s"${name}_${regName}"
-    } else {
-      s"${name}_${regName}_${regField}"
-    }
-    val width = regRange.split(":").headOption.map(_.toInt).getOrElse(0) - regRange.split(":").lastOption.map(_.toInt).getOrElse(0) + 1
-    FieldConfig(name, portName, baseAddress + regOffset, regType, width, regInit)
-  }
-
+  val fieldConfigs = CsrDescription.load(descriptionSheetPath)
   val apb = IO(new ApbPort)
-  //Dynamically load in the each row, this stores all of the IO interfaces from the sheet into a map of DynamicBundles
-  /* Old code
-    val elements = for { // Loop through each hardware block in the map sheet
-    row <- map.rows
-    blockType = row(0)
-    name = row(1)
-    interface = row(2)
-    baseAddress = row(3)
-    endAddress = row(4)
-    cacheable = row(5)
-    executable = row(6)
-    description = row(7)
-    blockSheet = sheets(blockType)
-    registers = for {
-      regRow <- blockSheet.rows
-      regName = regRow(0)
-      regOffset = regRow(1)
-      regField = regRow(2)
-      regType = regRow(3)
-      regRange = regRow(4)
-      regInit = regRow(5)
-    } yield {
-      (regName, regOffset, regField, regType, regRange, regInit)
-    }
-  } yield { 
-    (name, registers)
-  }
-  val myBundle = new DynamicBundle(elements.map { case (name, registers) =>
-    (name, new DynamicBundle(
-      registers.flatMap { case (regName, regOffset, regField, regType, regRange, regInit) =>
-        val portName = if (regField.trim.isEmpty) {
-          s"${name}_${regName}"
-        } else {
-          s"${name}_${regName}_${regField}"
-        }
-        val width = regRange.split(":").headOption.map(_.toInt).getOrElse(0) - regRange.split(":").lastOption.map(_.toInt).getOrElse(0) + 1
-        regType match {
-          case "rw" => Seq(portName -> Output(UInt(width.W)))
-          case "ro" => Seq(portName -> Input(UInt(width.W)))
-          case "wotrg" => Seq(portName -> Output(UInt(width.W)), s"${portName}_trg" -> Output(Bool()))
-          case "rotrg" => Seq(portName -> Input(UInt(width.W)), s"${portName}_trg" -> Output(Bool()))
-          case "const" => Seq.empty
-          case _ => throw new Exception(s"Unknown register type: $regType")
-        }
-      }
+
+  private def fieldPort(field: FieldConfig): Data = field.regType match {
+    case "rw" => Output(UInt(field.width.W))
+    case "ro" => Input(UInt(field.width.W))
+    case "wotrg" => new DynamicBundle(Seq(
+      "data" -> Output(UInt(field.width.W)), "trg" -> Output(Bool())
     ))
-  })
-  */
-  val ioPorts = fieldConfigs.flatMap { config =>
-    config.regType match {
-          case "rw" => Seq(config.portName -> Output(UInt( config.width.W)))
-          case "ro" => Seq(config.portName -> Input(UInt(config.width.W)))
-          case "wotrg" => Seq(config.portName -> Output(UInt(config.width.W)), s"${config.portName}_trg" -> Output(Bool()))
-          case "rotrg" => Seq(config.portName -> Input(UInt(config.width.W)), s"${config.portName}_trg" -> Output(Bool()))
-          case "const" => Seq.empty
-          case _ => throw new Exception(s"Unknown register type: $config.regType")
+    case "rotrg" => new DynamicBundle(Seq(
+      "data" -> Input(UInt(field.width.W)), "trg" -> Output(Bool())
+    ))
+  }
+
+  // Preserve spreadsheet order and the block.register[.field][.data/.trg] hierarchy.
+  private val connectedFields = fieldConfigs.filterNot(_.regType == "const")
+  val csr = IO(new DynamicBundle(connectedFields.map(_.instName).distinct.map { instance =>
+    val fields = connectedFields.filter(_.instName == instance)
+    instance -> new DynamicBundle(fields.map(_.regName).distinct.map { register =>
+      val registerFields = fields.filter(_.regName == register)
+      val port = if (registerFields.head.fieldName.isEmpty) fieldPort(registerFields.head)
+      else new DynamicBundle(registerFields.map(field => field.fieldName.get -> fieldPort(field)))
+      register -> port
+    })
+  }))
+
+  private def port(field: FieldConfig): Data = {
+    val register = csr(field.instName).asInstanceOf[DynamicBundle](field.regName)
+    field.fieldName.fold(register)(name => register.asInstanceOf[DynamicBundle](name))
+  }
+
+  // Every access completes in one access cycle. Setup and idle never change state.
+  private val access = apb.psel && apb.penable && !reset.asBool
+  private val readAccess = access && !apb.pwrite
+  private val writeAccess = access && apb.pwrite
+  apb.pready := !reset.asBool
+
+  private val readValues = fieldConfigs.filter(_.readable).map { field =>
+    val value = field.regType match {
+      case "const" => field.initValue.get.U(field.width.W)
+      case "ro" => port(field).asInstanceOf[UInt]
+      case "rotrg" => port(field).asInstanceOf[DynamicBundle]("data").asInstanceOf[UInt]
+      case "rw" => Wire(UInt(field.width.W))
+    }
+    field -> value
+  }.toMap
+
+  fieldConfigs.foreach { field =>
+    val selected = apb.paddr === field.address.U(32.W)
+    if (field.writable) {
+      // '?' means unspecified state after reset, matching the Python reference.
+      val value = field.initValue match {
+        case Some(init) => RegInit(init.U(field.width.W))
+        case None => Reg(UInt(field.width.W))
+      }
+      when(writeAccess && selected) {
+        value := apb.pwdata(field.msb, field.lsb)
+      }
+      if (field.regType == "rw") {
+        port(field).asInstanceOf[UInt] := value
+        readValues(field) := value
+      } else {
+        port(field).asInstanceOf[DynamicBundle]("data") := value
+      }
+    }
+    if (field.regType == "wotrg" || field.regType == "rotrg") {
+      val direction = if (field.regType == "wotrg") writeAccess else readAccess
+      port(field).asInstanceOf[DynamicBundle]("trg") := direction && selected
     }
   }
 
-  val myBundle = new DynamicBundle(ioPorts)  
-  myBundle.elements.foreach { case (name, data) =>
-    println(s"$name: ${data.getWidth} bits")
-  } // Just a debug print to show the allocated bits for each register field
+  private def matches(fields: Seq[FieldConfig]): Bool =
+    fields.map(_.address).distinct.map(address => apb.paddr === address.U(32.W))
+      .foldLeft(false.B)(_ || _)
 
-  val block = fieldConfigs.groupBy(_.instName) // Group the field configs by their instance name to create a map of hardware blocks
-  block.foreach { case (blockName, configs) =>
-    println(s"Block: $blockName")
-    configs.foreach { config =>
-      println(s"  Port: ${config.portName}, Address: 0x${config.address.toString(16)}, Type: ${config.regType}, Width: ${config.width}, Init: ${config.initValue.getOrElse("None")}")
+  private val canRead = matches(fieldConfigs.filter(_.readable))
+  private val canWrite = matches(fieldConfigs.filter(_.writable))
+  apb.pslverr := access && Mux(apb.pwrite, !canWrite, !canRead)
+  apb.prdata := 0.U
+  fieldConfigs.filter(_.readable).groupBy(_.address).foreach { case (address, fields) =>
+    val packed = fields.map { field =>
+      (readValues(field).pad(32) << field.lsb)(31, 0)
+    }.reduce(_ | _)
+    when(readAccess && apb.paddr === address.U(32.W)) {
+      apb.prdata := packed
     }
-  } // Just a debug print to show the allocated bits for each register field
-  S
-  // TODO: Load in the APB interface and connect the appropriate signals from myBundle
-  val csr = IO(new DynamicBundle(
-    Seq(sheets(map.column("Block").head).column("Register").head -> Output(UInt(32.W)))
-  ))
-  
-
-  apb := DontCare
-  apb.pready := 1.B
-  apb.pslverr := 1.B
-  csr := DontCare
+  }
 }
 
 object CsrAdapter extends App {
-  emitVerilog(
-    new CsrAdapter("soc.xlsx"),
-    Array("--target-dir", "generated")
+  val spreadsheet = args.headOption.getOrElse("soc.xlsx")
+  val outputDirectory = args.lift(1).getOrElse("generated")
+  ChiselStage.emitSystemVerilogFile(
+    new CsrAdapter(spreadsheet),
+    Array("--target-dir", outputDirectory)
   )
 }

@@ -11,11 +11,26 @@ class ApbMasterBfm(
     pwdata: UInt,
     prdata: UInt,
     pready: Bool,
-    pslverr: Bool
+    pslverr: Bool,
+    maxWaitCycles: Int = 1000
 ) {
+
+  private def awaitReady(): Unit = {
+    var cycles = 0
+    while (!pready.peekBoolean() && cycles < maxWaitCycles) {
+      clock.step()
+      cycles += 1
+    }
+    assert(pready.peekBoolean(), s"APB transaction timed out after $maxWaitCycles wait cycles")
+  }
 
   /// Apply reset to the DUT
   def reset(): Unit = {
+    psel.poke(false.B)
+    penable.poke(false.B)
+    pwrite.poke(false.B)
+    paddr.poke(0.U)
+    pwdata.poke(0.U)
     reset.poke(1.B)
     clock.step()
     reset.poke(0.B)
@@ -41,7 +56,7 @@ class ApbMasterBfm(
     // access phase
     penable.poke(1.B)
 
-    while (!pready.peekBoolean()) clock.step()
+    awaitReady()
 
     val res = if (pslverr.peekBoolean()) None else Some(prdata.peekInt())
 
@@ -76,7 +91,7 @@ class ApbMasterBfm(
     // access phase
     penable.poke(1.B)
 
-    while (!pready.peekBoolean()) clock.step()
+    awaitReady()
 
     expected match {
       case None => pslverr.expect(1.B, s"Expected error on read at address 0x${address.toString(16)}")
@@ -98,7 +113,7 @@ class ApbMasterBfm(
   /**
     * Perform an APB write transaction
     * 
-    * Ignores any errors
+    * Returns None on an APB error, or Some(()) on success.
     *
     * @param address The address to write to
     * @param data The data to write
@@ -116,7 +131,7 @@ class ApbMasterBfm(
     // access phase
     penable.poke(1.B)
 
-    while (!pready.peekBoolean()) clock.step()
+    awaitReady()
 
     val res = if (pslverr.peekBoolean()) None else Some(())
 

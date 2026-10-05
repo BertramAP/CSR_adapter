@@ -127,7 +127,7 @@ Take a look at the Excel source file `soc.xlsx`, the generated Verilog file `soc
 
 Inside `src/test/scala/GeneratorTest.scala`, a testbench is provided which instantiates the Chisel version of the CSR adapter and the Python-generated CSR adapter as a blackbox and verifies its functionality for a few representative CSR's. You can use this testbench as further reference for the specification. Running the testbench requires a **Verilator** installation. The file also contains a starting point for your Chisel implementation. Use the testbench for the python generator as inspiration to create a more complete testbench for your Chisel implementation.
 
-Note that the latest version of **Verilator 5.50+ does not work with ChiselTest**. Use version 5.48 instead. See: https://socks.lbl.gov/mvega/chisel-fp-generators#verilator-version-ceiling
+Use **Verilator 5.048** for this project. Verilator 5.050+ is not compatible with this ChiselTest version. See: https://socks.lbl.gov/mvega/chisel-fp-generators#verilator-version-ceiling
 
 The Chisel testbench does not need Verilator.
 
@@ -172,4 +172,48 @@ Using the python generator as a reference, implement the circuit generator in Ch
 - How will you structure your module implementation?
 - How will you organize your data, such that it suits your implementation best?
 - How will you test your implementation?
+
+## Running the implemented generator
+
+Use Java 17 and sbt (the repository pins sbt in `project/build.properties`). Generate the adapter from the supplied spreadsheet with:
+
+```bash
+sbt 'runMain CsrAdapter'
+# Optional spreadsheet and output directory:
+sbt 'runMain CsrAdapter soc.xlsx generated'
+```
+
+The output is `generated/CsrAdapter.sv`. The adapter has a 32-bit APB address/data interface and completes every transfer in one access cycle, without wait states. Writes and triggers are enabled only when `psel && penable` is asserted and reset is inactive. Unmapped, unaligned, and direction-disallowed accesses complete with `pslverr`; unused read bits are zero.
+
+The CSR interface follows `csr.block.register[.field]`, with `.data` and `.trg` members for trigger fields. For example, `csr("uart0")("data")("txData")` conceptually contains `data` and `trg`; Scala access requires casting intermediate values to `DynamicBundle`, and leaves to `UInt` or `Bool`. Constants have no CSR ports. Generated SystemVerilog flattens these names, e.g. `csr_uart0_data_txData_data`.
+
+`rw` and `wotrg` fields store their values and apply a specified `Init` on reset. `?` or a blank cell leaves their reset value unspecified. Decimal numeric cells and `0x` hexadecimal strings are supported. Write-trigger data is registered at the completing clock edge; its trigger is high during the access cycle, matching the Python reference. Read-trigger data comes directly from the block. Fields sharing an address are packed at their specified bit positions; independent read and write views may overlap (as with UART RX/TX).
+
+The loader rejects invalid bit ranges, values that do not fit, duplicate names, overlapping fields within a read/write view, and unaligned or out-of-block register addresses. `Interface`, `Cacheable`, and `Executable` remain unused as specified for the lab.
+
+### Verification in Linux / WSL
+
+Install Java 17, sbt, a C++ compiler, Make, and Verilator 5.048. See the [Verilator source installation instructions](https://verilator.org/guide/latest/install.html) and select tag `v5.048` when building it.
+
+From the repository in WSL, run:
+
+```bash
+bash scripts/verify.sh
+```
+
+From PowerShell in the repository, the equivalent command is:
+
+```powershell
+wsl -d Ubuntu -- bash scripts/verify.sh
+```
+
+This performs a clean build, runs all hardware tests using Verilator (including comparison with the Python-generated RTL), regenerates the Chisel SystemVerilog, and lints it. `CsrAdapterTest` covers all five field types, resets, mixed-field packing, decimal Excel values, independent instances, access errors, and setup/idle/back-to-back/reset trigger timing. `CsrEquivalenceTest` compares both implementations over seeded randomized reads and writes. `CsrDescriptionTest` checks parsing and malformed specifications.
+
+For a faster Chisel-only run without Verilator:
+
+```bash
+sbt 'testOnly CsrDescriptionTest CsrAdapterTest'
+```
+
+Build output, simulation output, `.metals/`, and `.vscode/` are ignored by Git.
 

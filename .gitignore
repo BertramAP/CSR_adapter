@@ -1,2 +1,9 @@
 # Scala / sbt build output (including nested project builds)
 target/
+
+# Local Scala tooling and editor settings
+.metals/
+.vscode/
+
+# ChiselTest simulation output
+test_run_dir/
