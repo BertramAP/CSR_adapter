@@ -1,4 +1,0 @@
-[0m[[0m[0mdebug[0m] [0m[0m> Exec(__stopWatch network-2, None, None)[0m
-[0m[[0m[0mdebug[0m] [0m[0m> Exec(shell, None, None)[0m
-[0m[[0m[0mdebug[0m] [0m[0mForcing garbage collection...[0m
-[0m[[0m[0mdebug[0m] [0m[0mjsonRpcRequest: JsonRpcRequestMessage(2.0, fbb01c72-1110-4fe6-b1d9-289b91d29d48, sbt/terminalPropertiesQuery, ""})[0m

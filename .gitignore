@@ -1,0 +1,2 @@
+# Scala / sbt build output (including nested project builds)
+target/
